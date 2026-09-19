@@ -1,0 +1,71 @@
+services:
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: proxy
+    volumes:
+      - ./proxy.py:/app/main.py
+    network_mode: host
+
+  publisher-hora:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: publisher-hora
+    volumes:
+      - ./publisher1.py:/app/main.py
+    depends_on:
+      - proxy
+    network_mode: host
+
+  publisher-dado:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: publisher-dado
+    volumes:
+      - ./publisher2.py:/app/main.py
+    depends_on:
+      - proxy
+    network_mode: host
+
+  subscriber-hora:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: subscriber-hora
+    volumes:
+      - ./subscriber1.py:/app/main.py
+    depends_on:
+      - proxy
+    network_mode: host
+
+  subscriber-dado:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: subscriber-dado
+    volumes:
+      - ./subscriber2.py:/app/main.py
+    depends_on:
+      - proxy
+    network_mode: host
+
+  subscriber-todos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cc7261:pyzmq
+    container_name: subscriber-todos
+    volumes:
+      - ./subscriber3.py:/app/main.py
+    depends_on:
+      - proxy
+    network_mode: host 
