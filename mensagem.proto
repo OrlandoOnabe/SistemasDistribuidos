@@ -1,0 +1,48 @@
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+
+message ReqLogin {
+    string usuario = 1;
+    google.protobuf.Timestamp timestamp_req = 2;
+}
+
+message RepLogin {
+    bool sucedido = 1;
+    string erro = 2;
+    google.protobuf.Timestamp timestamp_rep = 3;
+}
+
+message ReqCriarCanal {
+    string canal_nome = 1;
+    google.protobuf.Timestamp timestamp_req = 2;
+}
+
+message RepCriarCanal {
+    bool sucedido = 1;
+    string erro = 2;
+    google.protobuf.Timestamp timestamp_rep = 3;
+}
+
+message ReqListarCanais {
+    google.protobuf.Timestamp timestamp_req = 1;
+}
+
+message RepListarCanais {
+    repeated string canais = 1;
+    google.protobuf.Timestamp timestamp_rep = 2;
+}
+
+enum RequestTipo {
+    LOGIN_USUARIO = 0;
+    CRIAR_CANAL = 1;
+    LISTAGEM_CANAIS = 2;
+}
+
+message Request {
+    RequestTipo tiporeq = 1;
+    oneof requisicao {
+        ReqLogin login_usuario = 2;
+        ReqCriarCanal criar_canal = 3;
+        ReqListarCanais listagem_canais = 4;
+    }
+}
