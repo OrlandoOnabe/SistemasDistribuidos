@@ -1,24 +1,59 @@
 services:
-  servidor:
+  servidor-python:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: python/Dockerfile
     image: cc7261:pyzmq
     volumes:
-      - ./servidor.py:/app/main.py
-    ports:
-      - "5555:5555"
+      - ./python/servidor.py:/app/main.py:ro
+      - ./dados/python:/app/dados
+    deploy:
+      replicas: 1
+    depends_on:
+      - broker
+
+  cliente-python:
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    image: cc7261:pyzmq
+    volumes:
+      - ./python/cliente.py:/app/main.py:ro
+    depends_on:
+      - servidor-java
     deploy:
       replicas: 1
 
-  cliente:
+  servidor-java:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: cc7261:pyzmq
+      dockerfile: java/Dockerfile
+    image: cc7261:jeromq
+    command: ["java", "-cp", ".:lib/*", "Servidor"]
     volumes:
-      - ./cliente.py:/app/main.py
-    depends_on:
-      - servidor
+    - ./dados/java:/app/dados
     deploy:
       replicas: 1
+    depends_on:
+      - broker
+
+  cliente-java:
+    build:
+      context: .
+      dockerfile: java/Dockerfile
+    image: cc7261:jeromq
+    command: ["java", "-cp", ".:lib/*", "Cliente"]
+    depends_on:
+      - servidor-python
+    deploy:
+      replicas: 1
+  broker:
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    image: cc7261:pyzmq
+    volumes:
+      - ./python/broker.py:/app/main.py:ro
+    command: ["python", "main.py"]
+    ports:
+      - "5555:5555"

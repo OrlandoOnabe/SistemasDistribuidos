@@ -7,9 +7,10 @@ message ReqLogin {
 }
 
 message RepLogin {
-    bool sucedido = 1;
-    string erro = 2;
-    google.protobuf.Timestamp timestamp_rep = 3;
+    bool logado = 1;
+    string sucesso = 2;
+    string erro = 3;
+    google.protobuf.Timestamp timestamp_rep = 4;
 }
 
 message ReqCriarCanal {
@@ -18,9 +19,10 @@ message ReqCriarCanal {
 }
 
 message RepCriarCanal {
-    bool sucedido = 1;
-    string erro = 2;
-    google.protobuf.Timestamp timestamp_rep = 3;
+    bool criado = 1;
+    string sucesso = 2;
+    string erro = 3;
+    google.protobuf.Timestamp timestamp_rep = 4;
 }
 
 message ReqListarCanais {
@@ -44,5 +46,13 @@ message Request {
         ReqLogin login_usuario = 2;
         ReqCriarCanal criar_canal = 3;
         ReqListarCanais listagem_canais = 4;
+    }
+}
+
+message Reply {
+    oneof resposta {
+        RepLogin login_usuario = 1;
+        RepCriarCanal criar_canal = 2;
+        RepListarCanais listagem_canais = 3;
     }
 }
