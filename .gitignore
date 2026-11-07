@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# Java
+*.class
+bin/
+lib/
+Mensagem.java
+
+# SQLite
+dados/
+*.db
+*.db-shm
+*.db-wal
+
+# VS Code
+.vscode/
+
+# Ambientes virtuais
+.venv/
+venv/
