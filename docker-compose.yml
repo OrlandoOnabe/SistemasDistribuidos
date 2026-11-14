@@ -11,6 +11,7 @@ services:
       replicas: 1
     depends_on:
       - broker
+      - proxy
 
   cliente-python:
     build:
@@ -36,6 +37,7 @@ services:
       replicas: 1
     depends_on:
       - broker
+      - proxy
 
   cliente-java:
     build:
@@ -57,3 +59,15 @@ services:
     command: ["python", "main.py"]
     ports:
       - "5555:5555"
+  proxy:
+      build:
+        context: .
+        dockerfile: python/Dockerfile
+      image: cc7261:pyzmq
+      container_name: proxy
+      volumes:
+        - ./python/proxy.py:/app/main.py:ro
+      command: ["python", "main.py"]
+      ports:
+        - 5557:5557
+        - 5558:5558

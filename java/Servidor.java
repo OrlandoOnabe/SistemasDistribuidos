@@ -20,6 +20,8 @@ public class Servidor {
         try (ZContext context = new ZContext()) {
             ZMQ.Socket socket = context.createSocket(SocketType.REP);
             socket.connect("tcp://broker:5556");
+            ZMQ.Socket pub = context.createSocket(SocketType.PUB);
+            pub.connect("tcp://proxy:5557");
 
             Connection conexao = DriverManager.getConnection("jdbc:sqlite:/app/dados/java.db");
             String sqlLogin ="""
@@ -36,9 +38,19 @@ public class Servidor {
                     timestamp_criacao TEXT NOT NULL
                 )
             """;
+            String sqlPub = """
+                CREATE TABLE IF NOT EXISTS publicacoes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topico TEXT NOT NULL,
+                    mensagem TEXT NOT NULL,
+                    timestamp_pub TEXT NOT NULL
+                )
+            """;
+
             Statement stmt = conexao.createStatement();
             stmt.execute(sqlLogin);
             stmt.execute(sqlCanal);
+            stmt.execute(sqlPub);
 
             while (true){
                 byte[] mensagem = socket.recv();
@@ -94,6 +106,24 @@ public class Servidor {
                     stmt.close();
                     channels.setTimestampRep(tempo_agora());
                     rep.setListagemCanais(channels);
+                }
+                else if(req.getRequisicaoCase() == Mensagem.Request.RequisicaoCase.PUBLICAR){
+                    String topico = req.getPublicar().getNomeCanal();
+                    String texto = req.getPublicar().getPublicacao();
+                    String tempo_publicacao = Instant.now().toString();
+                    Mensagem.EnviarPub publicacao = Mensagem.EnviarPub.newBuilder().setTopico(topico).setPublicacao(texto).setTimestampPub(tempo_agora()).build();
+                    String sql = "INSERT INTO publicacoes (topico, mensagem, timestamp_pub) VALUES (?, ?, ?) ";
+                    PreparedStatement pstmt = conexao.prepareStatement(sql);
+                    pstmt.setString(1, topico);
+                    pstmt.setString(2, texto);
+                    pstmt.setString(3, tempo_publicacao);
+                    pstmt.executeUpdate();
+                    pstmt.close();
+
+                    pub.sendMore(topico);
+                    pub.send(publicacao.toByteArray());
+
+                    rep.setPublicar(Mensagem.RepPublicar.newBuilder().setPublicado(true).setSucesso("Mensagem Publicada!").setTimestampRep(tempo_agora()));
                 }
 
                 Mensagem.Reply reply = rep.build();

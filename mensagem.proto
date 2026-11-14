@@ -34,10 +34,30 @@ message RepListarCanais {
     google.protobuf.Timestamp timestamp_rep = 2;
 }
 
+message ReqPublicar {
+    string nome_canal = 1;
+    string publicacao = 2;
+    google.protobuf.Timestamp timestamp_req = 3;
+}
+
+message RepPublicar {
+    bool publicado = 1;
+    string sucesso = 2;
+    string erro = 3;
+    google.protobuf.Timestamp timestamp_rep = 4;
+}
+
+message EnviarPub {
+    string topico = 1;
+    string publicacao = 2;
+    google.protobuf.Timestamp timestamp_pub = 3;
+}
+
 enum RequestTipo {
     LOGIN_USUARIO = 0;
     CRIAR_CANAL = 1;
     LISTAGEM_CANAIS = 2;
+    PUBLICAR = 3;
 }
 
 message Request {
@@ -46,6 +66,7 @@ message Request {
         ReqLogin login_usuario = 2;
         ReqCriarCanal criar_canal = 3;
         ReqListarCanais listagem_canais = 4;
+        ReqPublicar publicar = 5;
     }
 }
 
@@ -54,5 +75,6 @@ message Reply {
         RepLogin login_usuario = 1;
         RepCriarCanal criar_canal = 2;
         RepListarCanais listagem_canais = 3;
+        RepPublicar publicar = 4;
     }
 }
