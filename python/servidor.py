@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 context = zmq.Context()
 socket = context.socket(zmq.REP)
 socket.connect("tcp://broker:5556")
+pub = context.socket(zmq.PUB)
+pub.connect("tcp://proxy:5557")
 
 conexao = sqlite3.connect('/app/dados/python.db')
 cursor = conexao.cursor()
@@ -21,6 +23,14 @@ cursor.execute("""
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL UNIQUE,
         timestamp_criacao TEXT NOT NULL
+    )
+""")
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS publicacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topico TEXT NOT NULL,
+        mensagem TEXT NOT NULL,
+        timestamp_pub TEXT NOT NULL
     )
 """)
 conexao.commit()
@@ -76,6 +86,25 @@ while True:
         for canal in canais:
             rep.listagem_canais.canais.append(canal[0])
         rep.listagem_canais.timestamp_rep.GetCurrentTime()
+
+    elif tiporeq == "publicar":
+        topico = req.publicar.nome_canal
+        texto = req.publicar.publicacao
+        req.publicar.timestamp_req.GetCurrentTime()
+        publicacao = mensagem_pb2.EnviarPub()
+        publicacao.topico = topico
+        publicacao.publicacao = texto
+        publicacao.timestamp_pub.GetCurrentTime()
+        tempo_pub = datetime.now(timezone.utc).isoformat()
+        cursor.execute(
+            """INSERT INTO publicacoes (topico, mensagem, timestamp_pub) VALUES (?, ?, ?)""",
+            (topico, texto, tempo_pub)
+        )
+        conexao.commit()
+        pub.send_multipart([topico.encode("utf-8"), publicacao.SerializeToString()])
+        rep.publicar.publicado = True
+        rep.publicar.sucesso = "Mensagem Publicada!"
+        rep.publicar.timestamp_rep.GetCurrentTime()
 
     print(f"Mensagem enviada: {rep}", flush=True)
     socket.send(rep.SerializeToString())
