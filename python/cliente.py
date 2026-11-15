@@ -5,6 +5,9 @@ import random
 from datetime import datetime, timezone
 import time
 
+relogio = 0
+print("Relógio lógico atual:", relogio, flush=True)
+
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
 socket.connect("tcp://broker:5555")
@@ -20,30 +23,40 @@ req = mensagem_pb2.Request()
 req.tiporeq = mensagem_pb2.LOGIN_USUARIO
 req.login_usuario.usuario = "bot-python"
 req.login_usuario.timestamp_req.GetCurrentTime()
+relogio += 1
+req.relogio = relogio
 
 print("Enviando:")
 print(req, flush=True)
 socket.send(req.SerializeToString())
+print("Relógio lógico atual:", relogio, flush=True)
 
 resposta = socket.recv()
 rep = mensagem_pb2.Reply()
 rep.ParseFromString(resposta)
+relogio = max(relogio, rep.relogio)
 print("Resposta:")
 print(rep, flush=True)
+print("Relógio lógico atual:", relogio, flush=True)
 
 req = mensagem_pb2.Request()
 req.tiporeq = mensagem_pb2.LISTAGEM_CANAIS
 req.listagem_canais.timestamp_req.GetCurrentTime()
+relogio += 1
+req.relogio = relogio
 
 print("Enviando:")
 print(req, flush=True)
 socket.send(req.SerializeToString())
+print("Relógio lógico atual:", relogio, flush=True)
 
 resposta = socket.recv()
 rep = mensagem_pb2.Reply()
 rep.ParseFromString(resposta)
+relogio = max(relogio, rep.relogio)
 print("Resposta:")
 print(rep, flush=True)
+print("Relógio lógico atual:", relogio, flush=True)
 
 canais = list(rep.listagem_canais.canais)
 if len(canais) < 5:
@@ -53,31 +66,41 @@ if len(canais) < 5:
     req.tiporeq = mensagem_pb2.CRIAR_CANAL
     req.criar_canal.canal_nome = novo_canal
     req.criar_canal.timestamp_req.GetCurrentTime()
+    relogio += 1
+    req.relogio = relogio
 
     print("Enviando:")
     print(req, flush=True)
     socket.send(req.SerializeToString())
+    print("Relógio lógico atual:", relogio, flush=True)
 
     resposta = socket.recv()
     rep = mensagem_pb2.Reply()
     rep.ParseFromString(resposta)
+    relogio = max(relogio, rep.relogio)
     print("Resposta:")
     print(rep, flush=True)
+    print("Relógio lógico atual:", relogio, flush=True)
     canais.append(novo_canal)
 
 req = mensagem_pb2.Request()
 req.tiporeq = mensagem_pb2.LISTAGEM_CANAIS
 req.listagem_canais.timestamp_req.GetCurrentTime()
+relogio += 1
+req.relogio = relogio
 
 print("Enviando:")
 print(req, flush=True)
 socket.send(req.SerializeToString())
+print("Relógio lógico atual:", relogio, flush=True)
 
 resposta = socket.recv()
 rep = mensagem_pb2.Reply()
 rep.ParseFromString(resposta)
+relogio = max(relogio, rep.relogio)
 print("Resposta:")
 print(rep, flush=True)
+print("Relógio lógico atual:", relogio, flush=True)
 
 if len(canais_inscritos) < 3:
     canais_disponiveis = []
@@ -103,22 +126,31 @@ while True:
         req.publicar.nome_canal = canal_escolhido
         req.publicar.publicacao = texto
         req.publicar.timestamp_req.GetCurrentTime()
+        relogio += 1
+        req.relogio = relogio
         socket.send(req.SerializeToString())
+        print("Relógio lógico atual:", relogio, flush=True)
 
         rep = mensagem_pb2.Reply()
         rep.ParseFromString(socket.recv())
+        relogio = max(relogio, rep.relogio)
         print("Resposta:", rep.publicar.sucesso, flush=True)
+        print("Relógio lógico atual:", relogio, flush=True)
 
         pubicacoes_incritas = dict(poller.poll(timeout=0))
         if sub in pubicacoes_incritas:
             topico, dados = sub.recv_multipart()
             publicacao = mensagem_pb2.EnviarPub()
             publicacao.ParseFromString(dados)
+            relogio = max(relogio, publicacao.relogio)
+            print("Relógio lógico atual:", relogio, flush=True)
 
             print("\nPublicação recebida:", flush=True)
             print("Topico:", publicacao.topico, flush=True)
             print("Mensagem:", publicacao.publicacao, flush=True)
             print("Enviada em:", publicacao.timestamp_pub.ToDatetime(tzinfo=timezone.utc), flush=True)
             print("Recebida em:", datetime.now(timezone.utc), flush=True)
+            print("Relógio lógico recebido:", publicacao.relogio)
+            print("Relógio lógico local:", relogio)
 
         time.sleep(1)
