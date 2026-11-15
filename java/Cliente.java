@@ -7,6 +7,8 @@ import java.util.Random;
 import java.time.Instant;
 
 public class Cliente {
+    static long relogio = 0;
+
     public static Timestamp tempo_agora() {
         long tempo = System.currentTimeMillis();
         return Timestamp.newBuilder().setSeconds(tempo / 1000).setNanos((int) (tempo % 1000) * 1000000).build();
@@ -24,37 +26,43 @@ public class Cliente {
             ArrayList<String> canais_inscritos = new ArrayList<>();
             String[] publicacoes = {"Sistemas distribuidos", "Gestão de Projetos de Software", "Estrutura de dados", "Automatos", "Calculo 3"};
 
+            relogio++;
             Mensagem.Request req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.LOGIN_USUARIO).setLoginUsuario(
                             Mensagem.ReqLogin.newBuilder().setUsuario("bot-java").setTimestampReq(tempo_agora())
-                    ).build();
+                    ).setRelogio(relogio).build();
 
             System.out.println("Enviando:");
             System.out.println(req);
             socket.send(req.toByteArray());
             byte[] mensagem = socket.recv();
             Mensagem.Reply rep = Mensagem.Reply.parseFrom(mensagem);
+            relogio = Math.max(relogio, rep.getRelogio());
             System.out.println("Resposta recebida:");
             System.out.println(rep);
+            System.out.println("Relógio lógico atual: " + relogio);
 
+            relogio++;
             req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.LISTAGEM_CANAIS).setListagemCanais(
                             Mensagem.ReqListarCanais.newBuilder().setTimestampReq(tempo_agora())
-                    ).build();
+                    ).setRelogio(relogio).build();
 
             System.out.println("Enviando:");
             System.out.println(req);
             socket.send(req.toByteArray());
             byte[] mensagem3 = socket.recv();
             rep = Mensagem.Reply.parseFrom(mensagem3);
+            relogio = Math.max(relogio, rep.getRelogio());
             System.out.println("Resposta recebida:");
             System.out.println(rep);
+            System.out.println("Relógio lógico atual: " + relogio);
             ArrayList<String> canais = new ArrayList<>(rep.getListagemCanais().getCanaisList());
 
             if (canais.size() < 5){
                 String novo_canal = "canal " + random.nextInt(100);
-
+                relogio++;
                 req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.CRIAR_CANAL).setCriarCanal(
                                 Mensagem.ReqCriarCanal.newBuilder().setCanalNome(novo_canal).setTimestampReq(tempo_agora())
-                        ).build();
+                        ).setRelogio(relogio).build();
 
                 System.out.println("Enviando:");
                 System.out.println(req);
@@ -62,9 +70,26 @@ public class Cliente {
                 byte[] mensagem2 = socket.recv();
                 canais.add(novo_canal);
                 rep = Mensagem.Reply.parseFrom(mensagem2);
+                relogio = Math.max(relogio, rep.getRelogio());
                 System.out.println("Resposta recebida:");
                 System.out.println(rep);
+                System.out.println("Relógio lógico atual: " + relogio);
             }
+
+            relogio++;
+            req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.LISTAGEM_CANAIS).setListagemCanais(
+                            Mensagem.ReqListarCanais.newBuilder().setTimestampReq(tempo_agora())
+                    ).setRelogio(relogio).build();
+
+            System.out.println("Enviando:");
+            System.out.println(req);
+            socket.send(req.toByteArray());
+            byte[] mensagem4 = socket.recv();
+            rep = Mensagem.Reply.parseFrom(mensagem4);
+            relogio = Math.max(relogio, rep.getRelogio());
+            System.out.println("Resposta recebida:");
+            System.out.println(rep);
+            System.out.println("Relógio lógico atual: " + relogio);
 
             if(canais_inscritos.size() < 3){
                 ArrayList<String> canais_disponiveis = new ArrayList<>(canais);
@@ -79,21 +104,26 @@ public class Cliente {
                 String escolhido = canais.get(random.nextInt(canais.size()));
                 System.out.println("Publicando no canal: " + escolhido);
                 for (int i = 0; i < 10; i++) {
-                        String texto = mensagens[random.nextInt(mensagens.length)];
+                        String texto = publicacoes[random.nextInt(publicacoes.length)];
+                        System.out.println("Publicação: " + texto);
+                        relogio++;
                         req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.PUBLICAR).setPublicar(
-                                Mensagem.ReqPublicar.newBuilder().setNomeCanal(escolhido).setTimestampReq(tempo_agora())
-                        ).build(); 
+                                Mensagem.ReqPublicar.newBuilder().setNomeCanal(escolhido).setPublicacao(texto).setTimestampReq(tempo_agora())
+                        ).setRelogio(relogio).build(); 
                         socket.send(req.toByteArray());
                         byte[] mensagem2 = socket.recv();
                         rep = Mensagem.Reply.parseFrom(mensagem2);
+                        relogio = Math.max(relogio, rep.getRelogio());
                         System.out.println("Resposta recebida:");
                         System.out.println(rep);
-                        System.out.println("Publicação: " + texto);
+                        System.out.println("Relógio lógico atual: " + relogio);
 
                         poller.poll(0);
                         if (poller.pollin(0)){
+                            byte[] topico = sub.recv();
                             byte[] texto_pub = sub.recv();
-                            Mensagem.EnviarPub publicacao = Mensagem.EnviarPub.parseFrom(dados);
+                            Mensagem.EnviarPub publicacao = Mensagem.EnviarPub.parseFrom(texto_pub);
+                            relogio = Math.max(relogio, publicacao.getRelogio());
 
                             System.out.println("\nPublicação recebida:");
                             System.out.println("Tópico: " + publicacao.getTopico());
@@ -101,6 +131,8 @@ public class Cliente {
                             Instant tempo_enviada = Instant.ofEpochSecond(publicacao.getTimestampPub().getSeconds(), publicacao.getTimestampPub().getNanos());
                             System.out.println("Enviada em: " + tempo_enviada);
                             System.out.println("Recebida em: " + Instant.now());
+                            System.out.println("Relógio lógico recebido: " + publicacao.getRelogio());
+                            System.out.println("Relógio lógico local: " + relogio);
                         }
                         Thread.sleep(1000);
                 }

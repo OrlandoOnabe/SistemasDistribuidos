@@ -51,6 +51,7 @@ message EnviarPub {
     string topico = 1;
     string publicacao = 2;
     google.protobuf.Timestamp timestamp_pub = 3;
+    int64 relogio = 4;
 }
 
 enum RequestTipo {
@@ -68,6 +69,7 @@ message Request {
         ReqListarCanais listagem_canais = 4;
         ReqPublicar publicar = 5;
     }
+    int64 relogio = 6;
 }
 
 message Reply {
@@ -77,4 +79,31 @@ message Reply {
         RepListarCanais listagem_canais = 3;
         RepPublicar publicar = 4;
     }
+    int64 relogio = 5;
+}
+
+enum ReferenciaTipo {
+    REGISTRAR = 0;
+    HEARTBEAT = 1;
+    LISTAGEM_SERVIDORES = 2;
+}
+
+message Ranking {
+    string nome_servidor = 1;
+    int32 rank = 2;
+}
+
+message ReqReferencia {
+    ReferenciaTipo tipo_referencia = 1;
+    string nome_servidor = 2;
+    int64 relogio = 3;
+}
+
+message RepReferencia {
+    bool sucesso = 1;
+    string sucedido = 2;
+    int32 rank = 3;
+    repeated Ranking lista_servidores = 4;
+    google.protobuf.Timestamp timestamp_ref = 5;
+    int64 relogio = 6;
 }

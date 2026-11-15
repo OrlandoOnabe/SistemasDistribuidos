@@ -12,6 +12,7 @@ services:
     depends_on:
       - broker
       - proxy
+      - referencia
 
   cliente-python:
     build:
@@ -38,6 +39,7 @@ services:
     depends_on:
       - broker
       - proxy
+      - referencia
 
   cliente-java:
     build:
@@ -71,3 +73,13 @@ services:
       ports:
         - 5557:5557
         - 5558:5558
+  referencia:
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    image: cc7261:pyzmq
+    volumes:
+      - ./python/servico_referencia.py:/app/main.py:ro
+    command: ["python", "main.py"]
+    ports:
+      - "5559:5559"
