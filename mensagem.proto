@@ -107,3 +107,33 @@ message RepReferencia {
     google.protobuf.Timestamp timestamp_ref = 5;
     int64 relogio = 6;
 }
+
+enum ServidorTipo {
+    ELEICAO = 0;
+    CONSULTAR_RELOGIO = 1;
+    VERIFICAR_COORDENADOR = 2;
+    AJUSTAR_RELOGIO = 3;
+}
+
+message ReqServidor {
+    ServidorTipo tipo_servidor = 1;
+    string nome_servidor = 2;
+    int32 rank = 3;
+    int64 relogio = 4;
+    google.protobuf.Timestamp timestamp = 5;
+    double ajuste = 6;
+}
+
+message RepServidor {
+    bool sucesso = 1;
+    string sucedido = 2;
+    int64 relogio = 3;
+    google.protobuf.Timestamp timestamp = 4;
+    double ajuste = 5;
+}
+
+message AnuncioCoordenador {
+    string nome_servidor = 1;
+    int32 rank = 2;
+    int64 relogio = 3;
+}

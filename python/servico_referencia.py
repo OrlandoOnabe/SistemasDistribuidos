@@ -65,5 +65,4 @@ while True:
 
     relogio += 1
     rep.relogio = relogio
-    rep.timestamp_ref.GetCurrentTime()
     socket.send(rep.SerializeToString())
