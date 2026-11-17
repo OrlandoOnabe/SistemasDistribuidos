@@ -363,10 +363,11 @@ public class Servidor {
                             consulta.setLinger(0);
                             consulta.setReceiveTimeOut(1000);
                             consulta.setSendTimeOut(1000);
-                            consulta.connect("tcp://" + coordenador + ":5560");
+                            
                             relogio++;
                             Mensagem.ReqServidor req_sinc = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.CONSULTAR_RELOGIO).setNomeServidor(NOME).setRank(rank).setRelogio(relogio).setTimestamp(tempo_agora()).build();
                             try {
+                                consulta.connect("tcp://" + coordenador + ":5560");
                                 consulta.send(req_sinc.toByteArray());
                                 byte[] dados = consulta.recv();
                                 if (dados == null) {
@@ -399,10 +400,11 @@ public class Servidor {
                         consulta.setLinger(0);
                         consulta.setReceiveTimeOut(1000);
                         consulta.setSendTimeOut(1000);
-                        consulta.connect("tcp://" + coordenador + ":5560");
+                        
                         relogio++;
                         Mensagem.ReqServidor req_verificacao = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.VERIFICAR_COORDENADOR).setNomeServidor(NOME).setRank(rank).setRelogio(relogio).setTimestamp(tempo_agora()).build();
                         try {
+                            consulta.connect("tcp://" + coordenador + ":5560");
                             consulta.send(req_verificacao.toByteArray());
                             byte[] dados = consulta.recv();
                             if (dados == null) {
@@ -445,11 +447,11 @@ public class Servidor {
                             consulta.setLinger(0);
                             consulta.setReceiveTimeOut(1000);
                             consulta.setSendTimeOut(1000);
-                            consulta.connect("tcp://" + par.getNomeServidor() + ":5560");
 
                             relogio++;
                             Mensagem.ReqServidor req_replica = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.SOLICITAR_REPLICAS).setNomeServidor(NOME).setPagina(pag).setRelogio(relogio).build();
                             try {
+                                consulta.connect("tcp://" + par.getNomeServidor() + ":5560");
                                 consulta.send(req_replica.toByteArray());
                                 byte[] dados = consulta.recv();
                                 if (dados == null) {
@@ -515,10 +517,10 @@ public class Servidor {
                             consulta.setLinger(0);
                             consulta.setReceiveTimeOut(1000);
                             consulta.setSendTimeOut(1000);
-                            consulta.connect("tcp://" + servidor.getNomeServidor() + ":5560");
                             relogio++;
                             Mensagem.ReqServidor req_eleicao = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.ELEICAO).setNomeServidor(NOME).setRank(rank).setRelogio(relogio).build();
                             try {
+                                consulta.connect("tcp://" + servidor.getNomeServidor() + ":5560");
                                 consulta.send(req_eleicao.toByteArray());
                                 byte[] dados = consulta.recv();
                                 if (dados == null) {
