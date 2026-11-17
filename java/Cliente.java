@@ -7,6 +7,7 @@ import java.util.Random;
 import java.time.Instant;
 
 public class Cliente {
+    static final String NOME = System.getenv("NOME") != null ? System.getenv("NOME") : "bot-java";
     static long relogio = 0;
 
     public static Timestamp tempo_agora() {
@@ -28,7 +29,7 @@ public class Cliente {
 
             relogio++;
             Mensagem.Request req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.LOGIN_USUARIO).setLoginUsuario(
-                            Mensagem.ReqLogin.newBuilder().setUsuario("bot-java").setTimestampReq(tempo_agora())
+                            Mensagem.ReqLogin.newBuilder().setUsuario(NOME).setTimestampReq(tempo_agora())
                     ).setRelogio(relogio).build();
 
             System.out.println("Enviando:");
@@ -110,6 +111,8 @@ public class Cliente {
                         req = Mensagem.Request.newBuilder().setTiporeq(Mensagem.RequestTipo.PUBLICAR).setPublicar(
                                 Mensagem.ReqPublicar.newBuilder().setNomeCanal(escolhido).setPublicacao(texto).setTimestampReq(tempo_agora())
                         ).setRelogio(relogio).build(); 
+                        System.out.println("Enviando:");          
+                        System.out.println(req);
                         socket.send(req.toByteArray());
                         byte[] mensagem2 = socket.recv();
                         rep = Mensagem.Reply.parseFrom(mensagem2);

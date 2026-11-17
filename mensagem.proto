@@ -113,6 +113,7 @@ enum ServidorTipo {
     CONSULTAR_RELOGIO = 1;
     VERIFICAR_COORDENADOR = 2;
     AJUSTAR_RELOGIO = 3;
+    SOLICITAR_REPLICAS = 4;
 }
 
 message ReqServidor {
@@ -122,6 +123,7 @@ message ReqServidor {
     int64 relogio = 4;
     google.protobuf.Timestamp timestamp = 5;
     double ajuste = 6;
+    int32 pagina = 7;
 }
 
 message RepServidor {
@@ -130,10 +132,31 @@ message RepServidor {
     int64 relogio = 3;
     google.protobuf.Timestamp timestamp = 4;
     double ajuste = 5;
+    bool mais = 6;
+    repeated ReplicaPub publicacoes = 7;
+    repeated ReplicaCanal canais = 8;
 }
 
 message AnuncioCoordenador {
     string nome_servidor = 1;
     int32 rank = 2;
     int64 relogio = 3;
+}
+
+message ReplicaPub {
+    string id = 1;
+    string topico = 2;
+    string mensagem = 3;
+    string timestamp_pub = 4;
+    string servidor_origem = 5;
+    int64 relogio_logico = 6;
+}
+
+message ReplicaCanal {
+    string nome = 1;
+    string timestamp_criacao = 2;
+}
+
+message Replicas {
+    repeated ReplicaPub publicacoes = 1;
 }

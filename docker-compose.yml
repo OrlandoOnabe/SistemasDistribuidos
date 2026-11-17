@@ -1,12 +1,14 @@
 services:
-  servidor-python:
+  servidor-python-1:
     build:
       context: .
       dockerfile: python/Dockerfile
     image: cc7261:pyzmq
+    environment:
+      - NOME=servidor-python-1
     volumes:
       - ./python/servidor.py:/app/main.py:ro
-      - ./dados/python:/app/dados
+      - ./dados/python-1:/app/dados
     deploy:
       replicas: 1
     depends_on:
@@ -14,26 +16,61 @@ services:
       - proxy
       - referencia
 
-  cliente-python:
+  servidor-python-2:
     build:
       context: .
       dockerfile: python/Dockerfile
     image: cc7261:pyzmq
+    environment:
+      - NOME=servidor-python-2
+    volumes:
+      - ./python/servidor.py:/app/main.py:ro
+      - ./dados/python-2:/app/dados
+    deploy:
+      replicas: 1
+    depends_on:
+      - broker
+      - proxy
+      - referencia
+
+  cliente-python-1:
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    image: cc7261:pyzmq
+    environment:
+      - NOME=bot-python-1
     volumes:
       - ./python/cliente.py:/app/main.py:ro
     depends_on:
-      - servidor-java
+      - servidor-java-1
     deploy:
       replicas: 1
 
-  servidor-java:
+  cliente-python-2:
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    image: cc7261:pyzmq
+    environment:
+      - NOME=bot-python-2
+    volumes:
+      - ./python/cliente.py:/app/main.py:ro
+    depends_on:
+      - servidor-java-2
+    deploy:
+      replicas: 1
+
+  servidor-java-1:
     build:
       context: .
       dockerfile: java/Dockerfile
     image: cc7261:jeromq
     command: ["java", "-cp", ".:lib/*", "Servidor"]
+    environment:
+      - NOME=servidor-java-1
     volumes:
-    - ./dados/java:/app/dados
+    - ./dados/java-1:/app/dados
     deploy:
       replicas: 1
     depends_on:
@@ -41,14 +78,46 @@ services:
       - proxy
       - referencia
 
-  cliente-java:
+  servidor-java-2:
+    build:
+      context: .
+      dockerfile: java/Dockerfile
+    image: cc7261:jeromq
+    command: ["java", "-cp", ".:lib/*", "Servidor"]
+    environment:
+      - NOME=servidor-java-2
+    volumes:
+    - ./dados/java-2:/app/dados
+    deploy:
+      replicas: 1
+    depends_on:
+      - broker
+      - proxy
+      - referencia
+
+  cliente-java-1:
     build:
       context: .
       dockerfile: java/Dockerfile
     image: cc7261:jeromq
     command: ["java", "-cp", ".:lib/*", "Cliente"]
+    environment:
+      - NOME=bot-java-1
     depends_on:
-      - servidor-python
+      - servidor-python-1
+    deploy:
+      replicas: 1
+
+  cliente-java-2:
+    build:
+      context: .
+      dockerfile: java/Dockerfile
+    image: cc7261:jeromq
+    command: ["java", "-cp", ".:lib/*", "Cliente"]
+    environment:
+      - NOME=bot-java-2
+    depends_on:
+      - servidor-python-2
     deploy:
       replicas: 1
   broker:

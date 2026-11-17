@@ -9,8 +9,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Instant;
+import java.util.UUID;
 
 public class Servidor {
+    static final String NOME = System.getenv("NOME") != null ? System.getenv("NOME") : "servidor-java";
     static long relogio = 0;
     static int qtd_msg = 0;
     static long relogio_dif = 0;
@@ -20,6 +22,9 @@ public class Servidor {
     static boolean eleicao = true;
     static long esperando_eleicao = 0;
     static long ultima_verificacao = System.currentTimeMillis();
+    static long ultima_replicacao = System.currentTimeMillis();
+    static final long intervalo = 10000;
+    static int pagina = 0;
 
     public static Timestamp tempo_agora() {
         long tempo = System.currentTimeMillis() + relogio_dif;
@@ -39,9 +44,11 @@ public class Servidor {
             ZMQ.Socket sub = context.createSocket(SocketType.SUB);
             sub.connect("tcp://proxy:5558");
             sub.subscribe("servers");
+            sub.subscribe("replicacao");
+            sub.subscribe("replicacao_canais");
 
             relogio++;
-            Mensagem.ReqReferencia req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.REGISTRAR).setNomeServidor("servidor-java").setRelogio(relogio).build();
+            Mensagem.ReqReferencia req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.REGISTRAR).setNomeServidor(NOME).setRelogio(relogio).build();
             ref.send(req_ref.toByteArray());
             Mensagem.RepReferencia rep_ref = Mensagem.RepReferencia.parseFrom(ref.recv());
             relogio = Math.max(relogio, rep_ref.getRelogio()) + 1;
@@ -50,7 +57,7 @@ public class Servidor {
             System.out.println("Ranking: " + rank);
 
             relogio++;
-            req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.LISTAGEM_SERVIDORES).setNomeServidor("servidor-java").setRelogio(relogio).build();
+            req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.LISTAGEM_SERVIDORES).setNomeServidor(NOME).setRelogio(relogio).build();
             ref.send(req_ref.toByteArray());
 
             rep_ref = Mensagem.RepReferencia.parseFrom(ref.recv());
@@ -61,7 +68,7 @@ public class Servidor {
                 System.out.println("Nome: " + servidor.getNomeServidor() + " | Rank: " + servidor.getRank());
 }
 
-            Connection conexao = DriverManager.getConnection("jdbc:sqlite:/app/dados/java.db");
+            Connection conexao = DriverManager.getConnection("jdbc:sqlite:/app/dados/" + NOME + ".db");
             String sqlLogin ="""
                 CREATE TABLE IF NOT EXISTS logins (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,7 +88,10 @@ public class Servidor {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     topico TEXT NOT NULL,
                     mensagem TEXT NOT NULL,
-                    timestamp_pub TEXT NOT NULL
+                    timestamp_pub TEXT NOT NULL,
+                    id_uuid TEXT NOT NULL UNIQUE,
+                    servidor_origem TEXT NOT NULL,
+                    relogio_logico INTEGER NOT NULL DEFAULT 0
                 )
             """;
 
@@ -99,14 +109,51 @@ public class Servidor {
                 poller.poll(500);
 
                 if (poller.pollin(2)) {
-                    sub.recvStr();
-                    Mensagem.AnuncioCoordenador anuncio = Mensagem.AnuncioCoordenador.parseFrom(sub.recv());
-                    relogio = Math.max(relogio, anuncio.getRelogio()) + 1;
-                    if (anuncio.getRank() >= rank || anuncio.getNomeServidor().equals("servidor-java")) {
-                        coordenador = anuncio.getNomeServidor();
-                        eleicao = false;
-                        esperando_eleicao = 0;
-                        System.out.println("Novo coordenador: " + coordenador);
+                    String topico = sub.recvStr();
+                    byte[] msg = sub.recv();
+                    if (topico.equals("servers")){
+                        Mensagem.AnuncioCoordenador anuncio = Mensagem.AnuncioCoordenador.parseFrom(msg);
+                        relogio = Math.max(relogio, anuncio.getRelogio()) + 1;
+                        if (anuncio.getRank() >= rank || anuncio.getNomeServidor().equals(NOME)) {
+                            coordenador = anuncio.getNomeServidor();
+                            eleicao = false;
+                            esperando_eleicao = 0;
+                            System.out.println("Novo coordenador: " + coordenador);
+                        }
+                    }
+                    else if (topico.equals("replicacao")) {
+                        Mensagem.ReplicaPub replica = Mensagem.ReplicaPub.parseFrom(msg);
+
+                        if (!replica.getServidorOrigem().equals(NOME)) {
+                            relogio = Math.max(relogio, replica.getRelogioLogico()) + 1;
+
+                            String sql = "INSERT OR IGNORE INTO publicacoes (id_uuid, topico, mensagem, timestamp_pub, servidor_origem, relogio_logico) VALUES (?, ?, ?, ?, ?, ?)";
+
+                            PreparedStatement pstmt = conexao.prepareStatement(sql);
+                            pstmt.setString(1, replica.getId());
+                            pstmt.setString(2, replica.getTopico());
+                            pstmt.setString(3, replica.getMensagem());
+                            pstmt.setString(4, replica.getTimestampPub());
+                            pstmt.setString(5, replica.getServidorOrigem());
+                            pstmt.setLong(6, replica.getRelogioLogico());
+
+                            int inseridas = pstmt.executeUpdate();
+                            pstmt.close();
+                            if (inseridas > 0) {
+                                System.out.println("Publicação replicada! Id: " + replica.getId());
+                            }
+                        }
+                    }
+                    else if (topico.equals("replicacao_canais")) {
+                        Mensagem.ReplicaCanal replica = Mensagem.ReplicaCanal.parseFrom(msg);
+
+                        String sql = "INSERT OR IGNORE INTO canais (nome, timestamp_criacao) VALUES (?, ?)";
+
+                        PreparedStatement pstmt = conexao.prepareStatement(sql);
+                        pstmt.setString(1, replica.getNome());
+                        pstmt.setString(2, replica.getTimestampCriacao());
+                        pstmt.executeUpdate();
+                        pstmt.close();
                     }
                 }
 
@@ -142,6 +189,44 @@ public class Servidor {
                         relogio_dif += Math.round(req_servidor.getAjuste() * 1000);
                         rep_servidor.setSucedido("Relógio ajustado!");
                         System.out.println("offset em milissegundos: " + relogio_dif);
+                    }
+                    else if (req_servidor.getTipoServidor() == Mensagem.ServidorTipo.SOLICITAR_REPLICAS) {
+                        int pagina = Math.max(0, req_servidor.getPagina());
+                        int limite = 100;
+
+                        String sql = "SELECT id_uuid, topico, mensagem, timestamp_pub, servidor_origem, relogio_logico FROM publicacoes WHERE id IS NOT NULL ORDER BY id LIMIT ? OFFSET ?";
+
+                        PreparedStatement pstmt = conexao.prepareStatement(sql);
+                        pstmt.setInt(1, limite + 1);
+                        pstmt.setInt(2, pagina * limite);
+                        ResultSet eq = pstmt.executeQuery();
+
+                        int qtd = 0;
+                        while (eq.next()) {
+                            if (qtd >= limite) {
+                                rep_servidor.setMais(true);
+                                break;
+                            }
+                            Mensagem.ReplicaPub replica = Mensagem.ReplicaPub.newBuilder().setId(eq.getString("id_uuid")).setTopico(eq.getString("topico")).setMensagem(eq.getString("mensagem")).setTimestampPub(eq.getString("timestamp_pub")).setServidorOrigem(eq.getString("servidor_origem")).setRelogioLogico(eq.getLong("relogio_logico")).build();
+                            rep_servidor.addPublicacoes(replica);
+                            qtd++;
+                        }
+                        eq.close();
+                        pstmt.close();
+                        if (pagina == 0) {
+                            String sqlCanais = "SELECT nome, timestamp_criacao FROM canais";
+                            PreparedStatement pstmtCanais = conexao.prepareStatement(sqlCanais);
+                            ResultSet eqCanal = pstmtCanais.executeQuery();
+                            while (eqCanal.next()) {
+                                Mensagem.ReplicaCanal canal = Mensagem.ReplicaCanal.newBuilder().setNome(eqCanal.getString("nome")).setTimestampCriacao(eqCanal.getString("timestamp_criacao")).build();
+                                rep_servidor.addCanais(canal);
+                            }
+                            eqCanal.close();
+                            pstmtCanais.close();
+                        }
+                        rep_servidor.setSucedido("Réplicas enviadas!");
+
+                        System.out.println("Enviando página " + pagina + " de réplicas");
                     }
 
                     relogio++;
@@ -194,6 +279,9 @@ public class Servidor {
                             pstmt.setString(2, tempo_criacao);
                             pstmt.executeUpdate();
                             pstmt.close();
+                            Mensagem.ReplicaCanal replicaCanal = Mensagem.ReplicaCanal.newBuilder().setNome(nomeCanal).setTimestampCriacao(tempo_criacao).build();
+                            pub.sendMore("replicacao_canais");
+                            pub.send(replicaCanal.toByteArray());
                         }
                     }
                     else if(req.getRequisicaoCase() == Mensagem.Request.RequisicaoCase.LISTAGEM_CANAIS){
@@ -210,22 +298,30 @@ public class Servidor {
                         rep.setListagemCanais(channels);
                     }
                     else if(req.getRequisicaoCase() == Mensagem.Request.RequisicaoCase.PUBLICAR){
+                        String id = UUID.randomUUID().toString();
                         String topico = req.getPublicar().getNomeCanal();
                         String texto = req.getPublicar().getPublicacao();
                         String tempo_publicacao = Instant.ofEpochMilli(System.currentTimeMillis() + relogio_dif).toString();
                         relogio++;
                         Mensagem.EnviarPub publicacao = Mensagem.EnviarPub.newBuilder().setTopico(topico).setPublicacao(texto).setTimestampPub(tempo_agora()).setRelogio(relogio).build();
-                        String sql = "INSERT INTO publicacoes (topico, mensagem, timestamp_pub) VALUES (?, ?, ?) ";
+                        String sql = "INSERT INTO publicacoes (id_uuid, topico, mensagem, timestamp_pub, servidor_origem, relogio_logico) VALUES (?, ?, ?, ?, ?, ?) ";
                         PreparedStatement pstmt = conexao.prepareStatement(sql);
-                        pstmt.setString(1, topico);
-                        pstmt.setString(2, texto);
-                        pstmt.setString(3, tempo_publicacao);
+                        pstmt.setString(1, id);
+                        pstmt.setString(2, topico);
+                        pstmt.setString(3, texto);
+                        pstmt.setString(4, tempo_publicacao);
+                        pstmt.setString(5, NOME);
+                        pstmt.setLong(6, relogio);
                         pstmt.executeUpdate();
                         pstmt.close();
 
+                        Mensagem.ReplicaPub replica =
+                        Mensagem.ReplicaPub.newBuilder().setId(id).setTopico(topico).setMensagem(texto).setTimestampPub(tempo_publicacao).setServidorOrigem(NOME).setRelogioLogico(relogio).build();
+
+                        pub.sendMore("replicacao");
+                        pub.send(replica.toByteArray());
                         pub.sendMore(topico);
                         pub.send(publicacao.toByteArray());
-
                         rep.setPublicar(Mensagem.RepPublicar.newBuilder().setPublicado(true).setSucesso("Mensagem Publicada!").setTimestampRep(tempo_agora()));
                     }
 
@@ -238,7 +334,7 @@ public class Servidor {
 
                     if (qtd_msg >= 10) {
                         relogio++;
-                        req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.HEARTBEAT).setNomeServidor("servidor-java").setRelogio(relogio).build();
+                        req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.HEARTBEAT).setNomeServidor(NOME).setRelogio(relogio).build();
                         ref.send(req_ref.toByteArray());
 
                         rep_ref = Mensagem.RepReferencia.parseFrom(ref.recv());
@@ -249,7 +345,7 @@ public class Servidor {
                         }
                         else {
                             relogio++;
-                            req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.REGISTRAR).setNomeServidor("servidor-java").setRelogio(relogio).build();
+                            req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.REGISTRAR).setNomeServidor(NOME).setRelogio(relogio).build();
                             ref.send(req_ref.toByteArray());
                             rep_ref = Mensagem.RepReferencia.parseFrom(ref.recv());
                             relogio = Math.max(relogio, rep_ref.getRelogio()) + 1;
@@ -262,14 +358,14 @@ public class Servidor {
                     }
 
                     if (qtd_sinc >= 15) {
-                        if (coordenador != null && !coordenador.equals("servidor-java")) {
+                        if (coordenador != null && !coordenador.equals(NOME)) {
                             ZMQ.Socket consulta = context.createSocket(SocketType.REQ);
                             consulta.setLinger(0);
                             consulta.setReceiveTimeOut(1000);
                             consulta.setSendTimeOut(1000);
                             consulta.connect("tcp://" + coordenador + ":5560");
                             relogio++;
-                            Mensagem.ReqServidor req_sinc = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.CONSULTAR_RELOGIO).setNomeServidor("servidor-java").setRank(rank).setRelogio(relogio).setTimestamp(tempo_agora()).build();
+                            Mensagem.ReqServidor req_sinc = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.CONSULTAR_RELOGIO).setNomeServidor(NOME).setRank(rank).setRelogio(relogio).setTimestamp(tempo_agora()).build();
                             try {
                                 consulta.send(req_sinc.toByteArray());
                                 byte[] dados = consulta.recv();
@@ -298,14 +394,14 @@ public class Servidor {
 
                 if (System.currentTimeMillis() - ultima_verificacao >= 5000) {
                     ultima_verificacao = System.currentTimeMillis();
-                    if (coordenador != null && !coordenador.equals("servidor-java")) {
+                    if (coordenador != null && !coordenador.equals(NOME)) {
                         ZMQ.Socket consulta = context.createSocket(SocketType.REQ);
                         consulta.setLinger(0);
                         consulta.setReceiveTimeOut(1000);
                         consulta.setSendTimeOut(1000);
                         consulta.connect("tcp://" + coordenador + ":5560");
                         relogio++;
-                        Mensagem.ReqServidor req_verificacao = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.VERIFICAR_COORDENADOR).setNomeServidor("servidor-java").setRank(rank).setRelogio(relogio).setTimestamp(tempo_agora()).build();
+                        Mensagem.ReqServidor req_verificacao = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.VERIFICAR_COORDENADOR).setNomeServidor(NOME).setRank(rank).setRelogio(relogio).setTimestamp(tempo_agora()).build();
                         try {
                             consulta.send(req_verificacao.toByteArray());
                             byte[] dados = consulta.recv();
@@ -329,6 +425,76 @@ public class Servidor {
                     }
                 }
 
+                if (System.currentTimeMillis() - ultima_replicacao >= intervalo) {
+                    ultima_replicacao = System.currentTimeMillis();
+                    relogio++;
+                    req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.LISTAGEM_SERVIDORES).setNomeServidor(NOME).setRelogio(relogio).build();
+                    ref.send(req_ref.toByteArray());
+                    rep_ref = Mensagem.RepReferencia.parseFrom(ref.recv());
+                    relogio = Math.max(relogio, rep_ref.getRelogio()) + 1;
+
+                    for (Mensagem.Ranking par : rep_ref.getListaServidoresList()) {
+                        if (par.getNomeServidor().equals(NOME)) {
+                            continue;
+                        }
+                        int pag = 0;
+                        boolean continuar = true;
+                        while (continuar) {
+                            continuar = false;
+                            ZMQ.Socket consulta = context.createSocket(SocketType.REQ);
+                            consulta.setLinger(0);
+                            consulta.setReceiveTimeOut(1000);
+                            consulta.setSendTimeOut(1000);
+                            consulta.connect("tcp://" + par.getNomeServidor() + ":5560");
+
+                            relogio++;
+                            Mensagem.ReqServidor req_replica = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.SOLICITAR_REPLICAS).setNomeServidor(NOME).setPagina(pag).setRelogio(relogio).build();
+                            try {
+                                consulta.send(req_replica.toByteArray());
+                                byte[] dados = consulta.recv();
+                                if (dados == null) {
+                                    throw new Exception("Timeout");
+                                }
+                                Mensagem.RepServidor resposta = Mensagem.RepServidor.parseFrom(dados);
+                                relogio = Math.max(relogio, resposta.getRelogio()) + 1;
+
+                                int quantidade = 0;
+                                for (Mensagem.ReplicaPub replica : resposta.getPublicacoesList()) {
+                                    String sql = "INSERT OR IGNORE INTO publicacoes (id_uuid, topico, mensagem, timestamp_pub, servidor_origem, relogio_logico) VALUES (?, ?, ?, ?, ?, ?)";
+                                    PreparedStatement pstmt = conexao.prepareStatement(sql);
+                                    pstmt.setString(1, replica.getId());
+                                    pstmt.setString(2, replica.getTopico());
+                                    pstmt.setString(3, replica.getMensagem());
+                                    pstmt.setString(4, replica.getTimestampPub());
+                                    pstmt.setString(5, replica.getServidorOrigem());
+                                    pstmt.setLong(6, replica.getRelogioLogico());
+                                    quantidade += pstmt.executeUpdate();
+                                    pstmt.close();
+                                }
+                                for (Mensagem.ReplicaCanal canal : resposta.getCanaisList()) {
+                                    String sql = "INSERT OR IGNORE INTO canais (nome, timestamp_criacao) VALUES (?, ?)";
+                                    PreparedStatement pstmt = conexao.prepareStatement(sql);
+                                    pstmt.setString(1, canal.getNome());
+                                    pstmt.setString(2, canal.getTimestampCriacao());
+                                    pstmt.executeUpdate();
+                                    pstmt.close();
+                                }
+
+                                System.out.println(quantidade + " publicações recuperadas de " + par.getNomeServidor());
+
+                                if (resposta.getMais()) {
+                                    pag++;
+                                    continuar = true;
+                                }
+                            } catch (Exception e) {
+                                System.out.println("Replicação não foi possível. " + par.getNomeServidor() + " indisponível.");
+                            } finally {
+                                consulta.close();
+                            }
+                        }
+                    }
+                }
+
                 if (esperando_eleicao != 0 && System.currentTimeMillis() - esperando_eleicao >= 3000) {
                     esperando_eleicao = 0;
                     eleicao = true;
@@ -337,7 +503,7 @@ public class Servidor {
                 if (eleicao) {
                     eleicao = false;
                     relogio++;
-                    req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.LISTAGEM_SERVIDORES).setNomeServidor("servidor-java").setRelogio(relogio).build();
+                    req_ref = Mensagem.ReqReferencia.newBuilder().setTipoReferencia(Mensagem.ReferenciaTipo.LISTAGEM_SERVIDORES).setNomeServidor(NOME).setRelogio(relogio).build();
                     ref.send(req_ref.toByteArray());
                     rep_ref = Mensagem.RepReferencia.parseFrom(ref.recv());
                     relogio = Math.max(relogio, rep_ref.getRelogio()) + 1;
@@ -351,7 +517,7 @@ public class Servidor {
                             consulta.setSendTimeOut(1000);
                             consulta.connect("tcp://" + servidor.getNomeServidor() + ":5560");
                             relogio++;
-                            Mensagem.ReqServidor req_eleicao = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.ELEICAO).setNomeServidor("servidor-java").setRank(rank).setRelogio(relogio).build();
+                            Mensagem.ReqServidor req_eleicao = Mensagem.ReqServidor.newBuilder().setTipoServidor(Mensagem.ServidorTipo.ELEICAO).setNomeServidor(NOME).setRank(rank).setRelogio(relogio).build();
                             try {
                                 consulta.send(req_eleicao.toByteArray());
                                 byte[] dados = consulta.recv();
@@ -379,7 +545,7 @@ public class Servidor {
                         System.out.println("Aguardando anúncio do coordenador!");
                     }
                     else {
-                        coordenador = "servidor-java";
+                        coordenador = NOME;
                         esperando_eleicao = 0;
                         relogio++;
                         Mensagem.AnuncioCoordenador anuncio = Mensagem.AnuncioCoordenador.newBuilder().setNomeServidor(coordenador).setRank(rank).setRelogio(relogio).build();

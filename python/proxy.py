@@ -9,6 +9,7 @@ sub = context.socket(zmq.XSUB)
 sub.bind("tcp://*:5557")
 
 zmq.proxy(pub, sub)
+print("Proxy iniciado!", flush=True)
 
 pub.close()
 sub.close()
