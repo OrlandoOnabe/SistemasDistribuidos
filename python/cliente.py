@@ -4,6 +4,9 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import random
 from datetime import datetime, timezone
 import time
+import os
+
+NOME = os.environ.get("NOME", os.uname().nodename)
 
 relogio = 0
 print("Relógio lógico atual:", relogio, flush=True)
@@ -21,7 +24,7 @@ poller.register(sub, zmq.POLLIN)
 
 req = mensagem_pb2.Request()
 req.tiporeq = mensagem_pb2.LOGIN_USUARIO
-req.login_usuario.usuario = "bot-python"
+req.login_usuario.usuario = NOME
 req.login_usuario.timestamp_req.GetCurrentTime()
 relogio += 1
 req.relogio = relogio
@@ -121,6 +124,7 @@ while True:
 
     for i in range(10):
         texto = random.choice(publicacoes)
+        print("Publicação: " + texto)
         req = mensagem_pb2.Request()
         req.tiporeq = mensagem_pb2.PUBLICAR
         req.publicar.nome_canal = canal_escolhido
@@ -128,6 +132,8 @@ while True:
         req.publicar.timestamp_req.GetCurrentTime()
         relogio += 1
         req.relogio = relogio
+        print("Enviando:")               
+        print(req, flush=True) 
         socket.send(req.SerializeToString())
         print("Relógio lógico atual:", relogio, flush=True)
 
