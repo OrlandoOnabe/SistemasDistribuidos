@@ -2,7 +2,10 @@
 
 Projeto da disciplina **CC7261 – Sistemas Distribuídos**: um protótipo de serviço de mensagens com canais públicos, em que *bots* (clientes) fazem login, criam canais, publicam e recebem publicações, e em que os servidores guardam tudo em disco, sincronizam relógios, elegem um coordenador e replicam os dados entre si.
 
-**Integrantes:** _(preencher: nome e RA de cada integrante)_
+**Integrantes:** 
+
+Orlando Nagrockis Bertholdo RA: 24.223.003-5
+Lorenzo Colonnese Chiganças RA: 24.223.085-2
 
 ---
 
